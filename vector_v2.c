@@ -12,6 +12,9 @@
  * The pool is an array of array of ky_vector_t,
  * In the pool, define scope KY_FLAG_GLOBAL, KY_FLAG_GROUP, KY_FLAG_TRACE.
  * The gc will be performed at corresponding scope if it is KY_FLAG_MANAGED;
+ *
+ * For each trace clean up TRACE memory, for each group, clean up GROUP memory.
+ * so every variable has its own scope and make clear partition of name space!
  * */
 
 #ifndef FAIL_ON
@@ -270,12 +273,6 @@ void vLib_v1_init(lua_State *lua)
     luaL_setfuncs(lua, ky_vect_meta, 0);
 
     static const luaL_Reg ky_vect_func[] = {
-        {"add",         &v_add},
-        {"sub",         &v_sub},
-        {"mul",         &v_mul},
-        {"div",         &v_div},
-        {"pow",         &v_pow},
-        {"len",         &v_len},
         {"vector",      &v_vector},
         {"isvector",    &v_isvector},
         {NULL,          NULL}
