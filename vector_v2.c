@@ -3,9 +3,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include "lua-5.2/lua.h"
-#include "lua-5.2/lualib.h"
-#include "lua-5.2/lauxlib.h"
+#include <lua5.3/lua.h>
+#include <lua5.3/lualib.h>
+#include <lua5.3/lauxlib.h>
 
 /**
  * TODO: use a memory pool to do garbage collection.

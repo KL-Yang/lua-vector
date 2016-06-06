@@ -3,9 +3,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include "lua-5.2/lua.h"
-#include "lua-5.2/lualib.h"
-#include "lua-5.2/lauxlib.h"
+#include <lua5.3/lua.h>
+#include <lua5.3/lualib.h>
+#include <lua5.3/lauxlib.h>
 
 #ifndef FAIL_ON
 #define FAIL_ON(c,msg) do {if(c) {printf("%s", msg); abort();}} while(0);
@@ -193,11 +193,6 @@ void vect_ky_table_v1_init(lua_State *lua)
     luaL_setfuncs(lua, ky_vect_meta, 0);
 
     static const luaL_Reg ky_vect_func[] = {
-        {"add",         &v_add},
-        {"sub",         &v_sub},
-        {"mul",         &v_mul},
-        {"div",         &v_div},
-        {"pow",         &v_pow},
         {"vector",      &v_vector},
         {"isvector",    &v_isvector},
         {NULL,          NULL}
