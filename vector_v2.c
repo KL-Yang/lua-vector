@@ -23,6 +23,8 @@
 
 #define KY_FLAG_MANAGED		(0x1<<1)
 
+static int allocation_h, allocation_m;
+
 typedef struct {
     int         n, flag;
     double    * p;
@@ -52,7 +54,7 @@ typedef struct {
  */
 void v_exp_vector(lua_State *lua, double *a, int n, int flag)
 {
-    ky_vector_t *b = calloc(1, sizeof(ky_vector_t));
+    ky_vector_t *b = calloc(1, sizeof(ky_vector_t));    allocation_h++;
     b->n = n;
     b->p = a;
     b->flag = flag;
@@ -162,7 +164,7 @@ static int v_add_sub_mul_div_pow(lua_State *lua, char operator)
             vect_meta_vv(va, vb, n1, operator, vc);
         } 
     }
-
+    allocation_m++;
     assert(vc!=NULL);
     v_exp_vector(lua, vc, n1, KY_FLAG_MANAGED);
     return 1;
@@ -188,6 +190,12 @@ static int v_len(lua_State *lua)
     n = b->n;
     lua_pushnumber(lua, n);
     return 1;
+}
+
+static int v_report(lua_State *lua)
+{
+    printf("memory allocated %d /%d\n", allocation_h, allocation_m);
+    return 0;
 }
 
 static int v_index(lua_State *lua)
@@ -251,6 +259,7 @@ static int v_vector(lua_State *lua)
         for(int i=0; i<n; i++)
             a[i] = 0;
     }
+    allocation_m++;
     v_exp_vector(lua, a, n, KY_FLAG_MANAGED);
     return 1;
 }
@@ -275,6 +284,7 @@ void vLib_v1_init(lua_State *lua)
     static const luaL_Reg ky_vect_func[] = {
         {"vector",      &v_vector},
         {"isvector",    &v_isvector},
+        {"report",      &v_report},
         {NULL,          NULL}
     };
     luaL_newlib(lua, ky_vect_func);

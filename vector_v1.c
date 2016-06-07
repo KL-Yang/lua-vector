@@ -179,6 +179,11 @@ static int v_isvector(lua_State *lua)
     return 1;
 }
 
+static int v_report(lua_State *lua)
+{
+    return 0;
+}
+
 void vect_ky_table_v1_init(lua_State *lua)
 {
     static const luaL_Reg ky_vect_meta[] = {
@@ -195,6 +200,7 @@ void vect_ky_table_v1_init(lua_State *lua)
     static const luaL_Reg ky_vect_func[] = {
         {"vector",      &v_vector},
         {"isvector",    &v_isvector},
+        {"report",      &v_report},
         {NULL,          NULL}
     };
     luaL_newlib(lua, ky_vect_func);
