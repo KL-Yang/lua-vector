@@ -14,10 +14,15 @@
 
 static int64_t mem_use;
 
-typedef struct {
-    int         n, flag;
-    double    * p;
-} ky_vector_t;
+#define VECTOR_NUMBER       0
+#define VECTOR_OBJECT       1
+
+typedef struct ky_vector_t ky_vector_t;
+
+struct ky_vector_t {
+    int           n, flag;
+    double        * p;
+};
 
 /**
  * Managed vector will be __gc by lua, and unmanged will not be __gc.
@@ -148,7 +153,7 @@ static int v_gc(lua_State *lua)
 {
     const ky_vector_t *obj = lua_topointer(lua, 1);
     mem_use -= obj->n*sizeof(double);
-    printf("__GC(%d) memory use: %ld\n", obj->n*sizeof(double), mem_use);
+    //printf("__GC(%d) memory use: %ld\n", obj->n*sizeof(double), mem_use);
     free(obj->p);
     return 0;
 }
@@ -192,32 +197,14 @@ static int v_newindex(lua_State *lua)
 }
 
 /**
- * @brief Function v.new(n[, v]), initiate array of length n with value v
- * The second arguments is optional, there is several way to call it.
+ * @brief Function v.vector(n), initiate array of length n with value v
  * v.vector(n)    : create new vector of length n, initiate as 0
- * v.vector(n,v)  : create new vector of length n, initiate as v 
  * v.vector(tab)  : create new vector from a table with same length
- * v.vector(n,a,z): create new vector of length n, in range [a, z]
  * */
 static int v_vector(lua_State *lua)
 {
     int n, argc; double v, w, *a;
-    if((argc=lua_gettop(lua))==2) 
-    {
-        n = luaL_checknumber(lua, 1);
-        v = luaL_checknumber(lua, 2);
-        a = malloc(n*sizeof(double));
-        for(int i=0; i<n; i++)
-            a[i] = v;
-    } else if (argc==3) {
-        n = luaL_checknumber(lua, 1);
-        v = luaL_checknumber(lua, 2);
-        w = luaL_checknumber(lua, 3);
-        a = malloc(n*sizeof(double));
-        for(int i=0; i<n; i++)
-            a[i] = v+((w-v)*i)/(n-1);
-    } 
-    else if(lua_istable(lua, 1)) {
+    if(lua_istable(lua, 1)) {
         n = (int)lua_rawlen(lua, 1);
         a = malloc(n*sizeof(double));
         for(int k=0; k<n; k++) {
@@ -225,9 +212,7 @@ static int v_vector(lua_State *lua)
             a[k] = lua_tonumber(lua, -1);
             lua_pop(lua, 1);
         }
-    } 
-    else 
-    {
+    } else {
         n = luaL_checknumber(lua, 1);
         a = malloc(n*sizeof(double));
         for(int i=0; i<n; i++)
@@ -235,6 +220,29 @@ static int v_vector(lua_State *lua)
     }
     mem_use += n*sizeof(double);
     v_new_vector(lua, a, n, 0);
+    return 1;
+}
+
+/**
+ * @brief Function v.matrix(m, n), n is the least significant dim
+ * Matrix is implement as table of vectors, this is lazy
+ * */
+static int v_matrix(lua_State *lua)
+{
+    int m, n, argc; double *a;
+    if((argc=lua_gettop(lua))==1)
+        v_vector(lua);      // only 1 parameter
+    else 
+    {
+        m = luaL_checknumber(lua, 1);
+        n = luaL_checknumber(lua, 2);
+        lua_createtable(lua, m, 0);
+        for(int i=0; i<m; i++) {
+            a = calloc(n, sizeof(double));
+            v_new_vector(lua, a, n, 0);
+            lua_rawseti(lua, -2, i+1);
+        }
+    }
     return 1;
 }
 
@@ -257,6 +265,7 @@ void vLib_v1_init(lua_State *lua)
 
     static const luaL_Reg ky_vect_func[] = {
         {"vector",      &v_vector},
+        {"matrix",      &v_matrix},
         {"isvector",    &v_isvector},
         {"report",      &v_report},
         {NULL,          NULL}
