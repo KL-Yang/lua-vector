@@ -16,8 +16,9 @@ for i=1, 1000 do
     if i%10==0 then
         os.execute("sleep 1")
         k=collectgarbage("count")
-        print(i.."memory use="..k.."KB")
+        --print(i.."memory use="..k.."KB")
     end
+    v.report()
 end
 
 print(" #a="..#a)
