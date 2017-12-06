@@ -1,6 +1,9 @@
 
-a = v.vector(4096, 1.0)
+a = v.vector(4096)
 b = v.vector(4096)
+for i=1, 4096 do
+    a[i] = 1.0
+end
 
 for i=1, 10000 do
     b = b+a^3+a^2+a+1
