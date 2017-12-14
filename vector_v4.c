@@ -43,7 +43,7 @@ static int vL_isvector(lua_State *lua, int index)
             d=lua_rawequal(lua, -1, -2);
             lua_pop(lua, 2);
         }
-    return d;	//1 if index is a vector, 2 matrix
+    return d;	//TODO: 1 if index is a vector, 2 matrix
 }
 
 static int v_isvector(lua_State *lua)
@@ -190,7 +190,7 @@ static int v_matrix(lua_State *lua)
     return 1;
 }
 
-void vLib_v1_init(lua_State *lua)
+void vLib_v4_init(lua_State *lua)
 {
     static const luaL_Reg ky_vect_meta[] = {
         {"__gc",       &v_gc},
@@ -223,7 +223,7 @@ int main(int argc, char *argv[])
     lua_State * lua = luaL_newstate();
     luaL_openlibs(lua);
 
-    vLib_v1_init(lua);
+    vLib_v4_init(lua);
 
     if(argc>1) luaL_dofile(lua, argv[1]);
 

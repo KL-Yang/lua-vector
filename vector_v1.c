@@ -1,6 +1,6 @@
 #include "common.h"
 
-#define KY_VECT_META_TABLE_V1  "ky_vmeta_table_v1"
+#define TYPE_VECTOR  "vector_v1"
 
 /**
  * @brief put the native C double array on top of lua stack
@@ -12,7 +12,7 @@ static void v_set_vector(lua_State *lua, const double * restrict a, int n)
         lua_pushnumber(lua, a[k]);
         lua_rawseti(lua, -2, k+1);
     }
-    luaL_getmetatable(lua, KY_VECT_META_TABLE_V1);
+    luaL_getmetatable(lua, TYPE_VECTOR);
     lua_setmetatable(lua, -2);
 }
 
@@ -32,41 +32,16 @@ static double * v_get_vector(lua_State *lua, int * restrict n, int index)
     return a;
 }
 
-static void 
-vect_meta_vv(const double * restrict a, const double * restrict b, 
-        int n, char op, double * restrict c) 
+static int v_isvector(lua_State *lua)
 {
-    switch(op) {
-        case '+': for(int i=0; i<n; i++) {c[i] = a[i]+b[i];} break;
-        case '-': for(int i=0; i<n; i++) {c[i] = a[i]-b[i];} break;
-        case '*': for(int i=0; i<n; i++) {c[i] = a[i]*b[i];} break;
-        case '/': for(int i=0; i<n; i++) {c[i] = a[i]/b[i];} break;
-        case '^': for(int i=0; i<n; i++) {c[i] = pow(a[i],b[i]);}
+    int e = 0;
+    if(lua_getmetatable(lua, 1)) {
+        luaL_getmetatable(lua, TYPE_VECTOR);
+        e = lua_rawequal(lua, -1, -2);
+        lua_pop(lua, 2);
     }
-}
-static void
-vect_meta_vs(const double * restrict a, double b, int n, char op, 
-        double * restrict c) 
-{
-    switch(op) {
-        case '+': for(int i=0; i<n; i++) {c[i] = a[i]+b;} break;
-        case '-': for(int i=0; i<n; i++) {c[i] = a[i]-b;} break;
-        case '*': for(int i=0; i<n; i++) {c[i] = a[i]*b;} break;
-        case '/': for(int i=0; i<n; i++) {c[i] = a[i]/b;} break;
-        case '^': for(int i=0; i<n; i++) {c[i] = pow(a[i],b);}
-    }
-}
-static void
-vect_meta_sv(double a, const double * restrict b, int n, char op, 
-        double * restrict c) 
-{
-    switch(op) {
-        case '+': for(int i=0; i<n; i++) {c[i] = a+b[i];} break;
-        case '-': for(int i=0; i<n; i++) {c[i] = a-b[i];} break;
-        case '*': for(int i=0; i<n; i++) {c[i] = a*b[i];} break;
-        case '/': for(int i=0; i<n; i++) {c[i] = a/b[i];} break;
-        case '^': for(int i=0; i<n; i++) {c[i] = pow(a,b[i]);} 
-    }
+    lua_pushboolean(lua, e);
+    return 1;	//TODO: 1 if index is a vector, 2 matrix
 }
 
 static int v_add_sub_mul_div_pow(lua_State *lua, char operator)
@@ -80,11 +55,11 @@ static int v_add_sub_mul_div_pow(lua_State *lua, char operator)
             int n=0;
             double *vb = v_get_vector(lua, &n, 2);
             FAIL_ON((m!=n), "Error: operte on <vect> with differ length!");
-            vect_meta_vv(va, vb, m, operator, vc);
+            vector_op_vv(va, vb, m, operator, vc);
             free(vb);
         } else {
             double b = luaL_checknumber(lua, 2);
-            vect_meta_vs(va, b, m, operator, vc);
+            vector_op_vs(va, b, m, operator, vc);
         }
         free(va);
     } else 
@@ -93,7 +68,7 @@ static int v_add_sub_mul_div_pow(lua_State *lua, char operator)
         if(lua_istable(lua, 2)) {
             double *vb = v_get_vector(lua, &m, 2);
             vc = malloc(m*sizeof(double));
-            vect_meta_sv(a, vb, m, operator, vc);
+            vector_op_sv(a, vb, m, operator, vc);
             free(vb);
         } else { /* WTF? should never happen */ }
     }
@@ -119,7 +94,7 @@ static int v_vector(lua_State *lua)
     int n, argc; double v, w, *a;
     if(lua_istable(lua, 1)) {
         lua_pushvalue(lua, -1);
-        luaL_getmetatable(lua, KY_VECT_META_TABLE_V1);
+        luaL_getmetatable(lua, TYPE_VECTOR);
         lua_setmetatable(lua, -2);
     } else {
         n = luaL_checknumber(lua, 1);
@@ -153,23 +128,15 @@ static int v_matrix(lua_State *lua)
     return 1;
 }
 
-static int v_isvector(lua_State *lua)
-{
-    int e = 0;
-    if(lua_getmetatable(lua, 1)) {
-        luaL_getmetatable(lua, KY_VECT_META_TABLE_V1);
-        e = lua_rawequal(lua, -1, -2);
-    }
-    lua_pushboolean(lua, e);
-    return 1;
-}
-
-static int v_report(lua_State *lua)
+/**
+ * dummy function
+ * */
+static int v_memdebug(lua_State *lua)
 {
     return 0;
 }
 
-void vect_ky_table_v1_init(lua_State *lua)
+void vLib_v1_init(lua_State *lua)
 {
     static const luaL_Reg ky_vect_meta[] = {
         {"__add",      &v_add},
@@ -179,14 +146,14 @@ void vect_ky_table_v1_init(lua_State *lua)
         {"__pow",      &v_pow},
         {NULL,         NULL}
     };
-    luaL_newmetatable(lua, KY_VECT_META_TABLE_V1);
+    luaL_newmetatable(lua, TYPE_VECTOR);
     luaL_setfuncs(lua, ky_vect_meta, 0);
 
     static const luaL_Reg ky_vect_func[] = {
         {"vector",      &v_vector},
         {"matrix",      &v_matrix},
         {"isvector",    &v_isvector},
-        {"debug",       &v_report},
+        {"debug",       &v_memdebug},
         {NULL,          NULL}
     };
     luaL_newlib(lua, ky_vect_func);
@@ -198,7 +165,7 @@ int main(int argc, char *argv[])
     lua_State * lua = luaL_newstate();
     luaL_openlibs(lua);
 
-    vect_ky_table_v1_init(lua);
+    vLib_v1_init(lua);
 
     if(argc>1) luaL_dofile(lua, argv[1]);
 
