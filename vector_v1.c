@@ -91,7 +91,7 @@ static int v_pow(lua_State *lua) {return v_add_sub_mul_div_pow(lua, '^'); }
  * */
 static int v_vector(lua_State *lua)
 {
-    int n, argc; double v, w, *a;
+    int n; double *a;
     if(lua_istable(lua, 1)) {
         lua_pushvalue(lua, -1);
         luaL_getmetatable(lua, TYPE_VECTOR);
@@ -131,7 +131,7 @@ static int v_matrix(lua_State *lua)
 /**
  * dummy function
  * */
-static int v_memdebug(lua_State *lua)
+static int v_memdebug(lua_State __attribute__((unused)) *lua)
 {
     return 0;
 }

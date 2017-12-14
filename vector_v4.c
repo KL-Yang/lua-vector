@@ -146,7 +146,7 @@ static int v_newindex(lua_State *lua)
  * */
 static int v_vector(lua_State *lua)
 {
-    int n, argc; double v, w, *a;
+    int n; double *a;
     if(lua_istable(lua, 1)) {
         n = (int)lua_rawlen(lua, 1);
         a = malloc(n*sizeof(double));
