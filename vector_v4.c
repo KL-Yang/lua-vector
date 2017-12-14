@@ -9,10 +9,14 @@
 #include <lua5.3/lauxlib.h>
 
 #ifndef FAIL_ON
-#define FAIL_ON(c,msg) do {if(c) {printf("%s", msg); abort();}} while(0);
+#define FAIL_ON(c,msg)  do {if(c) {printf("%s", msg); abort();}} while(0);
 #endif
 
+static int debug_level;
 static int64_t mem_use;
+
+#define MUSE(x) do { mem_use+=x; if(debug_level>1) printf("%s: mem=%ld\n", __func__, mem_use);} while(0)
+#define FREE(x) do { mem_use-=x; if(debug_level>1) printf("%s: mem=%ld\n", __func__, mem_use);} while(0) 
 
 #define VECTOR_NUMBER       0
 #define VECTOR_OBJECT       1
@@ -137,8 +141,7 @@ static int v_add_sub_mul_div_pow(lua_State *lua, char operator)
             vect_meta_vv(va, vb, n1, operator, vc);
         } 
     }
-    mem_use += n1*sizeof(double);
-    assert(vc!=NULL);
+    MUSE(n1*sizeof(double));
     v_new_vector(lua, vc, n1, 0);
     return 1;
 }
@@ -152,8 +155,7 @@ static int v_pow(lua_State *lua) {return v_add_sub_mul_div_pow(lua, '^'); }
 static int v_gc(lua_State *lua)
 {
     const ky_vector_t *obj = lua_topointer(lua, 1);
-    mem_use -= obj->n*sizeof(double);
-    //printf("__GC(%d) memory use: %ld\n", obj->n*sizeof(double), mem_use);
+    FREE(obj->n*sizeof(double));
     free(obj->p);
     return 0;
 }
@@ -166,9 +168,14 @@ static int v_len(lua_State *lua)
     return 1;
 }
 
-static int v_report(lua_State *lua)
+/**
+ * @brief set or toggle if report the memory allocation tracking
+ * @param level : verbose level of memory debuger
+ * */
+static int v_memdebug(lua_State *lua)
 {
-    printf("memory use: %ld\n", mem_use);
+    debug_level = luaL_checknumber(lua, 1);
+    printf("MEM_DEBUG: memory use = %ld Bytes\n", mem_use);
     return 0;
 }
 
@@ -218,7 +225,7 @@ static int v_vector(lua_State *lua)
         for(int i=0; i<n; i++)
             a[i] = 0;
     }
-    mem_use += n*sizeof(double);
+    MUSE(n*sizeof(double));
     v_new_vector(lua, a, n, 0);
     return 1;
 }
@@ -239,6 +246,7 @@ static int v_matrix(lua_State *lua)
         lua_createtable(lua, m, 0);
         for(int i=0; i<m; i++) {
             a = calloc(n, sizeof(double));
+            MUSE(n*sizeof(double));
             v_new_vector(lua, a, n, 0);
             lua_rawseti(lua, -2, i+1);
         }
@@ -250,14 +258,14 @@ void vLib_v1_init(lua_State *lua)
 {
     static const luaL_Reg ky_vect_meta[] = {
         {"__gc",       &v_gc},
+        {"__len",      &v_len},
+        {"__index",    &v_index},
+        {"__newindex", &v_newindex},
         {"__add",      &v_add},
         {"__sub",      &v_sub},
         {"__mul",      &v_mul},
         {"__div",      &v_div},
         {"__pow",      &v_pow},
-        {"__len",      &v_len},
-        {"__index",    &v_index},
-        {"__newindex", &v_newindex},
         {NULL,         NULL}
     };
     luaL_newmetatable(lua, KY_VECTOR_V1);
@@ -267,7 +275,7 @@ void vLib_v1_init(lua_State *lua)
         {"vector",      &v_vector},
         {"matrix",      &v_matrix},
         {"isvector",    &v_isvector},
-        {"report",      &v_report},
+        {"debug",       &v_memdebug},
         {NULL,          NULL}
     };
     luaL_newlib(lua, ky_vect_func);
