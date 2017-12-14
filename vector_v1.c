@@ -1,39 +1,11 @@
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <assert.h>
-#include <lua5.3/lua.h>
-#include <lua5.3/lualib.h>
-#include <lua5.3/lauxlib.h>
+#include "common.h"
 
-#ifndef FAIL_ON
-#define FAIL_ON(c,msg) do {if(c) {printf("%s", msg); abort();}} while(0);
-#endif
 #define KY_VECT_META_TABLE_V1  "ky_vmeta_table_v1"
-
-/**
- * @brief convert table in lua stack[i] into native C array
- * */
-double * 
-vect_getfarray(lua_State *lua, int * restrict n, int i)
-{
-    int m; double *a;
-    m = *n = (int)lua_rawlen(lua, i);
-    a = malloc(m*sizeof(double));
-    for(int k=0; k<m; k++) {
-        lua_rawgeti(lua, i, k+1);
-        a[k] = lua_tonumber(lua, -1);
-        lua_pop(lua, 1);
-    }
-    return a;
-}
 
 /**
  * @brief put the native C double array on top of lua stack
  * */
-void 
-vect_putfarray(lua_State *lua, const double * restrict a, int n)
+static void v_set_vector(lua_State *lua, const double * restrict a, int n)
 {
     lua_createtable(lua, n, 0);
     for(int k=0; k<n; k++) {
@@ -42,6 +14,22 @@ vect_putfarray(lua_State *lua, const double * restrict a, int n)
     }
     luaL_getmetatable(lua, KY_VECT_META_TABLE_V1);
     lua_setmetatable(lua, -2);
+}
+
+/**
+ * @brief convert table in lua stack[i] into native C array
+ * */
+static double * v_get_vector(lua_State *lua, int * restrict n, int index)
+{
+    int m; double *a;
+    m = *n = (int)lua_rawlen(lua, index);
+    a = malloc(m*sizeof(double));
+    for(int k=0; k<m; k++) {
+        lua_rawgeti(lua, index, k+1);
+        a[k] = lua_tonumber(lua, -1);
+        lua_pop(lua, 1);
+    }
+    return a;
 }
 
 static void 
@@ -86,11 +74,11 @@ static int v_add_sub_mul_div_pow(lua_State *lua, char operator)
     double *vc=NULL; int m=0;
     if(lua_istable(lua, 1)) 
     {
-        double *va = vect_getfarray(lua, &m, 1);
+        double *va = v_get_vector(lua, &m, 1);
         vc = malloc(m*sizeof(double));
         if(lua_istable(lua, 2)) {
             int n=0;
-            double *vb = vect_getfarray(lua, &n, 2);
+            double *vb = v_get_vector(lua, &n, 2);
             FAIL_ON((m!=n), "Error: operte on <vect> with differ length!");
             vect_meta_vv(va, vb, m, operator, vc);
             free(vb);
@@ -103,14 +91,14 @@ static int v_add_sub_mul_div_pow(lua_State *lua, char operator)
     {
         double a = luaL_checknumber(lua, 1);
         if(lua_istable(lua, 2)) {
-            double *vb = vect_getfarray(lua, &m, 2);
+            double *vb = v_get_vector(lua, &m, 2);
             vc = malloc(m*sizeof(double));
             vect_meta_sv(a, vb, m, operator, vc);
             free(vb);
         } else { /* WTF? should never happen */ }
     }
     assert(vc!=NULL);
-    vect_putfarray(lua, vc, m);
+    v_set_vector(lua, vc, m);
     free(vc);
     return 1;
 }
@@ -123,47 +111,44 @@ static int v_pow(lua_State *lua) {return v_add_sub_mul_div_pow(lua, '^'); }
 
 /**
  * @brief Function v.new(n[, v]), initiate array of length n with value v
- * The second arguments is optional, there is several way to call it.
  * v.vector(n)    : create new vector of length n, initiate as 0
- * v.vector(n,v)  : create new vector of length n, initiate as v 
  * v.vector(tab)  : create new vector from a table with same length
- * v.vector(n,a,z): create new vector of length n, in range [a, z]
  * */
 static int v_vector(lua_State *lua)
 {
     int n, argc; double v, w, *a;
-    if((argc=lua_gettop(lua))==2) 
-    {
-        n = luaL_checknumber(lua, 1);
-        v = luaL_checknumber(lua, 2);
-        a = malloc(n*sizeof(double));
-        for(int i=0; i<n; i++)
-            a[i] = v;
-        vect_putfarray(lua, a, n);
-        free(a);
-    } else if (argc==3) {
-        n = luaL_checknumber(lua, 1);
-        v = luaL_checknumber(lua, 2);
-        w = luaL_checknumber(lua, 3);
-        a = malloc(n*sizeof(double));
-        for(int i=0; i<n; i++)
-            a[i] = v+((w-v)*i)/(n-1);
-        vect_putfarray(lua, a, n);
-        free(a);
-    } 
-    else if(lua_istable(lua, 1)) {
+    if(lua_istable(lua, 1)) {
         lua_pushvalue(lua, -1);
         luaL_getmetatable(lua, KY_VECT_META_TABLE_V1);
         lua_setmetatable(lua, -2);
-    } 
+    } else {
+        n = luaL_checknumber(lua, 1);
+        a = calloc(n, sizeof(double));
+        v_set_vector(lua, a, n);
+        free(a);
+    }
+    return 1;
+}
+
+/**
+ * @brief Function v.matrix(m, n), n is the least significant dim
+ * */
+static int v_matrix(lua_State *lua)
+{
+    int m, n, argc; double *a;
+    if((argc=lua_gettop(lua))==1)
+        v_vector(lua);      // only 1 parameter
     else 
     {
-        n = luaL_checknumber(lua, 1);
-        a = malloc(n*sizeof(double));
-        for(int i=0; i<n; i++)
-            a[i] = 0;
-        vect_putfarray(lua, a, n);
-        free(a);
+        m = luaL_checknumber(lua, 1);
+        n = luaL_checknumber(lua, 2);
+        lua_createtable(lua, m, 0);
+        for(int i=0; i<m; i++) {
+            a = calloc(n, sizeof(double));
+            v_set_vector(lua, a, n);
+            free(a);
+            lua_rawseti(lua, -2, i+1);
+        }
     }
     return 1;
 }
@@ -199,8 +184,9 @@ void vect_ky_table_v1_init(lua_State *lua)
 
     static const luaL_Reg ky_vect_func[] = {
         {"vector",      &v_vector},
+        {"matrix",      &v_matrix},
         {"isvector",    &v_isvector},
-        {"report",      &v_report},
+        {"debug",       &v_report},
         {NULL,          NULL}
     };
     luaL_newlib(lua, ky_vect_func);

@@ -1,98 +1,34 @@
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <string.h>
-#include <assert.h>
-#include <lua5.3/lua.h>
-#include <lua5.3/lualib.h>
-#include <lua5.3/lauxlib.h>
-
-#ifndef FAIL_ON
-#define FAIL_ON(c,msg)  do {if(c) {printf("%s", msg); abort();}} while(0);
-#endif
+#include "common.h"
 
 static int debug_level;
 static int64_t mem_use;
+typedef struct { int n; double * p; } vector_t;
 
+#define TYPE_VECTOR "vector_v4"
 #define MUSE(x) do { mem_use+=x; if(debug_level>1) printf("%s: mem=%ld\n", __func__, mem_use);} while(0)
 #define FREE(x) do { mem_use-=x; if(debug_level>1) printf("%s: mem=%ld\n", __func__, mem_use);} while(0) 
-
-#define VECTOR_NUMBER       0
-#define VECTOR_OBJECT       1
-
-typedef struct ky_vector_t ky_vector_t;
-
-struct ky_vector_t {
-    int           n, flag;
-    double        * p;
-};
-
-/**
- * Managed vector will be __gc by lua, and unmanged will not be __gc.
- */
-#define KY_VECTOR_V1        	"ky_vector_v1"
 
 /**
  * @brief Create a new vector as lua userdata with provided C array
  */
-void v_new_vector(lua_State *lua, double *a, int n, int flag)
+static void v_set_vector(lua_State *lua, double *a, int n)
 {
-    ky_vector_t *obj;
-    obj = lua_newuserdata(lua, sizeof(ky_vector_t));
+    vector_t *obj;
+    obj = lua_newuserdata(lua, sizeof(vector_t));
     obj->n = n;
     obj->p = a;
-    obj->flag = flag;
-    luaL_getmetatable(lua, KY_VECTOR_V1);
+    luaL_getmetatable(lua, TYPE_VECTOR);
     lua_setmetatable(lua, -2);
 }
 
 /**
  * @brief Get the vector data, make sure it is vector before use!
  * */
-void * v_get_vector(lua_State *lua, int index, int *n)
+static void * v_get_vector(lua_State *lua, int index, int *n)
 {
-    const ky_vector_t *obj = lua_topointer(lua, index);
+    const vector_t *obj = lua_topointer(lua, index);
     *n = obj->n;
     return obj->p;
-}
-
-static void 
-vect_meta_vv(const double * restrict a, const double * restrict b, 
-        int n, char op, double * restrict c) 
-{
-    switch(op) {
-        case '+': for(int i=0; i<n; i++) {c[i] = a[i]+b[i];} break;
-        case '-': for(int i=0; i<n; i++) {c[i] = a[i]-b[i];} break;
-        case '*': for(int i=0; i<n; i++) {c[i] = a[i]*b[i];} break;
-        case '/': for(int i=0; i<n; i++) {c[i] = a[i]/b[i];} break;
-        case '^': for(int i=0; i<n; i++) {c[i] = pow(a[i],b[i]);}
-    }
-}
-
-static void
-vect_meta_vs(const double * restrict a, double b, int n, char op, 
-        double * restrict c) 
-{
-    switch(op) {
-        case '+': for(int i=0; i<n; i++) {c[i] = a[i]+b;} break;
-        case '-': for(int i=0; i<n; i++) {c[i] = a[i]-b;} break;
-        case '*': for(int i=0; i<n; i++) {c[i] = a[i]*b;} break;
-        case '/': for(int i=0; i<n; i++) {c[i] = a[i]/b;} break;
-        case '^': for(int i=0; i<n; i++) {c[i] = pow(a[i],b);}
-    }
-}
-static void
-vect_meta_sv(double a, const double * restrict b, int n, char op, 
-        double * restrict c) 
-{
-    switch(op) {
-        case '+': for(int i=0; i<n; i++) {c[i] = a+b[i];} break;
-        case '-': for(int i=0; i<n; i++) {c[i] = a-b[i];} break;
-        case '*': for(int i=0; i<n; i++) {c[i] = a*b[i];} break;
-        case '/': for(int i=0; i<n; i++) {c[i] = a/b[i];} break;
-        case '^': for(int i=0; i<n; i++) {c[i] = pow(a,b[i]);} 
-    }
 }
 
 /**
@@ -103,7 +39,7 @@ static int vL_isvector(lua_State *lua, int index)
     int d=0;
     if(lua_isuserdata(lua, index)) 
         if(lua_getmetatable(lua, index)) {
-            luaL_getmetatable(lua, KY_VECTOR_V1);
+            luaL_getmetatable(lua, TYPE_VECTOR);
             d=lua_rawequal(lua, -1, -2);
             lua_pop(lua, 2);
         }
@@ -125,7 +61,7 @@ static int v_add_sub_mul_div_pow(lua_State *lua, char operator)
         double a = lua_tonumber(lua, 1);
         double *vb = v_get_vector(lua, 2, &n1);
         vc = malloc(n1*sizeof(double));
-        vect_meta_sv(a, vb, n1, operator, vc);
+        vector_op_sv(a, vb, n1, operator, vc);
     } 
     else 
     {
@@ -133,16 +69,16 @@ static int v_add_sub_mul_div_pow(lua_State *lua, char operator)
         vc = malloc(n1*sizeof(double));
         if(lua_isnumber(lua, 2)) {
             double b = lua_tonumber(lua, 2);
-            vect_meta_vs(va, b, n1, operator, vc);
+            vector_op_vs(va, b, n1, operator, vc);
         } else {
             double *vb = v_get_vector(lua, 2, &n2);
             FAIL_ON((n1!=n2), 
                 "Error: operte on <vect> with differ length!");
-            vect_meta_vv(va, vb, n1, operator, vc);
+            vector_op_vv(va, vb, n1, operator, vc);
         } 
     }
     MUSE(n1*sizeof(double));
-    v_new_vector(lua, vc, n1, 0);
+    v_set_vector(lua, vc, n1);
     return 1;
 }
 
@@ -154,7 +90,7 @@ static int v_pow(lua_State *lua) {return v_add_sub_mul_div_pow(lua, '^'); }
 
 static int v_gc(lua_State *lua)
 {
-    const ky_vector_t *obj = lua_topointer(lua, 1);
+    const vector_t *obj = lua_topointer(lua, 1);
     FREE(obj->n*sizeof(double));
     free(obj->p);
     return 0;
@@ -162,7 +98,7 @@ static int v_gc(lua_State *lua)
 
 static int v_len(lua_State *lua)
 {
-    const ky_vector_t *b = lua_topointer(lua, 1);
+    const vector_t *b = lua_topointer(lua, 1);
     int n = b->n;
     lua_pushnumber(lua, n);
     return 1;
@@ -182,7 +118,7 @@ static int v_memdebug(lua_State *lua)
 static int v_index(lua_State *lua)
 {
     int index = (int)luaL_checknumber(lua, 2)-1;
-    const ky_vector_t *b = lua_topointer(lua, 1);
+    const vector_t *b = lua_topointer(lua, 1);
     double *p = b->p; assert(index<b->n && index>=0);
     lua_pushnumber(lua, p[index]);
     return 1;
@@ -192,7 +128,7 @@ static int v_newindex(lua_State *lua)
 {
     int index = (int)luaL_checknumber(lua,2)-1;
     double value = luaL_checknumber(lua,3);
-    const ky_vector_t *obj = lua_topointer(lua, 1);
+    const vector_t *obj = lua_topointer(lua, 1);
     double *p = obj->p; 
     if(index>=obj->n || index<0) {
         printf("Access vector out of boundary!\n"
@@ -226,7 +162,7 @@ static int v_vector(lua_State *lua)
             a[i] = 0;
     }
     MUSE(n*sizeof(double));
-    v_new_vector(lua, a, n, 0);
+    v_set_vector(lua, a, n);
     return 1;
 }
 
@@ -247,7 +183,7 @@ static int v_matrix(lua_State *lua)
         for(int i=0; i<m; i++) {
             a = calloc(n, sizeof(double));
             MUSE(n*sizeof(double));
-            v_new_vector(lua, a, n, 0);
+            v_set_vector(lua, a, n);
             lua_rawseti(lua, -2, i+1);
         }
     }
@@ -268,7 +204,7 @@ void vLib_v1_init(lua_State *lua)
         {"__pow",      &v_pow},
         {NULL,         NULL}
     };
-    luaL_newmetatable(lua, KY_VECTOR_V1);
+    luaL_newmetatable(lua, TYPE_VECTOR);
     luaL_setfuncs(lua, ky_vect_meta, 0);
 
     static const luaL_Reg ky_vect_func[] = {
