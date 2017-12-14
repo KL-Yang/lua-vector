@@ -22,7 +22,11 @@ static void v_set_vector(lua_State *lua, const double * restrict a, int n)
 static double * v_get_vector(lua_State *lua, int * restrict n, int index)
 {
     int m; double *a;
+#ifdef USE_JIT
     m = *n = (int)lua_rawlen(lua, index);
+#else
+    m = *n = (int)lua_rawlen(lua, index);
+#endif
     a = malloc(m*sizeof(double));
     for(int k=0; k<m; k++) {
         lua_rawgeti(lua, index, k+1);
@@ -146,9 +150,6 @@ void vLib_v1_init(lua_State *lua)
         {"__pow",      &v_pow},
         {NULL,         NULL}
     };
-    luaL_newmetatable(lua, TYPE_VECTOR);
-    luaL_setfuncs(lua, ky_vect_meta, 0);
-
     static const luaL_Reg ky_vect_func[] = {
         {"vector",      &v_vector},
         {"matrix",      &v_matrix},
@@ -156,8 +157,16 @@ void vLib_v1_init(lua_State *lua)
         {"debug",       &v_memdebug},
         {NULL,          NULL}
     };
+
+    luaL_newmetatable(lua, TYPE_VECTOR);
+#ifdef USE_JIT
+    luaL_register(lua, NULL, ky_vect_meta);
+    luaL_register(lua, "v", ky_vect_func);
+#else
+    luaL_setfuncs(lua, ky_vect_meta, 0);
     luaL_newlib(lua, ky_vect_func);
     lua_setglobal(lua, "v"); 
+#endif
 }
 
 int main(int argc, char *argv[])
@@ -167,7 +176,10 @@ int main(int argc, char *argv[])
 
     vLib_v1_init(lua);
 
-    if(argc>1) luaL_dofile(lua, argv[1]);
+    if(argc>1) {
+        int a = luaL_dofile(lua, argv[1]);
+        assert(a==0);
+    }
 
     lua_close(lua);
     return 0;

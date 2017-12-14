@@ -204,8 +204,6 @@ void vLib_v4_init(lua_State *lua)
         {"__pow",      &v_pow},
         {NULL,         NULL}
     };
-    luaL_newmetatable(lua, TYPE_VECTOR);
-    luaL_setfuncs(lua, ky_vect_meta, 0);
 
     static const luaL_Reg ky_vect_func[] = {
         {"vector",      &v_vector},
@@ -214,8 +212,15 @@ void vLib_v4_init(lua_State *lua)
         {"debug",       &v_memdebug},
         {NULL,          NULL}
     };
+    luaL_newmetatable(lua, TYPE_VECTOR);
+#ifdef USE_JIT
+    luaL_register(lua, NULL, ky_vect_meta);
+    luaL_register(lua, "v", ky_vect_func);
+#else
+    luaL_setfuncs(lua, ky_vect_meta, 0);
     luaL_newlib(lua, ky_vect_func);
     lua_setglobal(lua, "v"); 
+#endif
 }
 
 int main(int argc, char *argv[])
@@ -225,7 +230,10 @@ int main(int argc, char *argv[])
 
     vLib_v4_init(lua);
 
-    if(argc>1) luaL_dofile(lua, argv[1]);
+    if(argc>1) {
+        int a = luaL_dofile(lua, argv[1]);
+        assert(a==0);
+    }
 
     lua_close(lua);
     return 0;
