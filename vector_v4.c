@@ -53,7 +53,7 @@ static int vL_dim(lua_State *lua, int index)
 {
     int shape=0;
     if(lua_istable(lua, index)) {
-        lua_rawgeti(lua, index, 1);
+        lua_rawgeti(lua, index, 1); //only check the first one
         shape = (vL_isvector(lua, -1))?(2):(1);
         lua_pop(lua, 1);
     } else {
@@ -234,12 +234,12 @@ static void jit_ffi_init(lua_State *lua)
  * */
 static int jit_ffi_cast(lua_State *lua, const char *type, void *pt)
 {
-    lua_getglobal(lua, NAME_VECFFI);
-    lua_getfield(lua, -1, "cast");
-    lua_pushstring(lua, type);
-    lua_pushlightuserdata(lua, pt);
+    lua_getglobal(lua, NAME_VECFFI);    //ffi.
+    lua_getfield(lua, -1, "cast");      //cast
+    lua_pushstring(lua, type);          //double*
+    lua_pushlightuserdata(lua, pt);     //pt
     lua_call(lua, 2, 1);
-//    lua_pop(lua, 1);
+    lua_remove(lua, -2);                //remove ffi
     return 1;   //1 result left on stack
 }
 
@@ -250,15 +250,24 @@ static int jit_ffi_cast(lua_State *lua, const char *type, void *pt)
  * */
 static int v_raw_alias(lua_State *lua)
 {
-    int n, dim; double *p;
-    if(have_jit) {
-        dim = vL_dim(lua, 1);
+    int i, m, n, dim; double *p;
+    dim = vL_dim(lua, 1);
+    if(have_jit && dim!=0) {
         if(dim==1) {
             p = v_get_vector(lua, 1, &n);
             jit_ffi_cast(lua, "double*", p);
         } else {
-            assert(dim==1); //TODO: force to abort()
-        }
+            m = lua_rawlen(lua, 1);
+            lua_createtable(lua, m, 0);
+            for(i=0; i<m; i++) {
+                lua_rawgeti(lua, 1, i+1);
+                p = v_get_vector(lua, -1, &n);
+                //printf("Matrix[%d] n=%d @%p top=%d\n", i, n, p, lua_gettop(lua));
+                lua_pop(lua, 1);
+                jit_ffi_cast(lua, "double*", p);
+                lua_rawseti(lua, -2, i+1);
+            }
+        } //table of lightuser point
     } else 
         lua_pushvalue(lua, 1);
     return 1;
@@ -283,7 +292,6 @@ void vLib_v4_init(lua_State *lua)
         {"vector",      &v_vector},
         {"matrix",      &v_matrix},
         {"dim",         &v_isvector},
-        {"raw_alias",   &v_raw_alias},
         {"raw",         &v_raw_alias},
         {"debug",       &v_memdebug},
         {NULL,          NULL}
