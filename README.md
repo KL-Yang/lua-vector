@@ -1,9 +1,6 @@
-# lua-vector
-lua vector extention
+# lua-vector extention experiments
 
-Thanks to the good reference at:
-
-https://john.nachtimwald.com/2014/07/12/wrapping-a-c-library-in-lua/
+This experiment runs on Debian Stretch, with default lua/luajit in Debian reponsitory.
 
 vector_v1.c :
 implementation use lua table.
@@ -11,10 +8,7 @@ implementation use lua table.
 vector_v4.c :
 implementation use lua userdata.
 
-unit01.lua :
-unit test.
-
-other files are kept to be clean up.
+other files are kept to be clean up. 
 
 | Tests    |  bench1-runtime | bench2-runtime | comment |
 | --- | --- | --- | --- |
