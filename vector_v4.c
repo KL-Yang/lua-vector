@@ -138,7 +138,6 @@ static int v_index(lua_State *lua)
 {
     const vector_t *b; int i;
     b = lua_topointer(lua, 1);
-    //if number, else if "raw"
     i = (int)luaL_checknumber(lua, 2);
     assert(i<=b->n && i>=0);
     lua_pushnumber(lua, b->p[i]);
