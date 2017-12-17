@@ -36,16 +36,39 @@ static double * v_get_vector(lua_State *lua, int * restrict n, int index)
     return a;
 }
 
+/**
+ * @Brief return 1 for vector and 2 for matrix and 0 for None!
+ * */
+static int vL_isvector(lua_State *lua, int index) 
+{
+    int d=0;
+    if(lua_istable(lua, index)) 
+        if(lua_getmetatable(lua, 1)) {
+            luaL_getmetatable(lua, TYPE_VECTOR);
+            d = lua_rawequal(lua, -1, -2);
+            lua_pop(lua, 2);
+        }
+    return d;
+}
+
+static int vL_dim(lua_State *lua, int index)
+{
+    int shape=0;
+    if(lua_istable(lua, index)) {
+        lua_rawgeti(lua, index, 1);
+        shape = (vL_isvector(lua, -1))?(2):(1);
+        lua_pop(lua, 1);
+    } else {
+        shape=(vL_isvector(lua, index))?(1):(0);
+    }
+    return shape;
+}
+
 static int v_isvector(lua_State *lua)
 {
-    int e = 0;
-    if(lua_getmetatable(lua, 1)) {
-        luaL_getmetatable(lua, TYPE_VECTOR);
-        e = lua_rawequal(lua, -1, -2);
-        lua_pop(lua, 2);
-    }
-    lua_pushboolean(lua, e);
-    return 1;	//TODO: 1 if index is a vector, 2 matrix
+    int shape = vL_dim(lua, 1);
+    lua_pushnumber(lua, shape);
+    return 1;
 }
 
 static int v_add_sub_mul_div_pow(lua_State *lua, char operator)
@@ -133,11 +156,20 @@ static int v_matrix(lua_State *lua)
 }
 
 /**
- * dummy function
+ * dummy function, do nothing
  * */
 static int v_memdebug(lua_State __attribute__((unused)) *lua)
 {
     return 0;
+}
+
+/**
+ * dummy, vector is implement as table, raw alias is itself!
+ * */
+static int v_raw_alias(lua_State *lua)
+{
+    lua_pushvalue(lua, 1);
+    return 1;
 }
 
 void vLib_v1_init(lua_State *lua)
@@ -153,7 +185,8 @@ void vLib_v1_init(lua_State *lua)
     static const luaL_Reg ky_vect_func[] = {
         {"vector",      &v_vector},
         {"matrix",      &v_matrix},
-        {"isvector",    &v_isvector},
+        {"dim",         &v_isvector},
+        {"raw",         &v_raw_alias},
         {"debug",       &v_memdebug},
         {NULL,          NULL}
     };

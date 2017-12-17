@@ -1,10 +1,13 @@
 #include "common.h"
 
+static int have_jit;
 static int debug_level;
 static int64_t mem_use;
 typedef struct { int n; double * p; } vector_t;
 
 #define TYPE_VECTOR "vector_v4"
+#define NAME_VECFFI "vecffi_v4"
+
 #define MUSE(x) do { mem_use+=x; if(debug_level>1) printf("%s: mem=%ld\n", __func__, mem_use);} while(0)
 #define FREE(x) do { mem_use-=x; if(debug_level>1) printf("%s: mem=%ld\n", __func__, mem_use);} while(0) 
 
@@ -43,13 +46,26 @@ static int vL_isvector(lua_State *lua, int index)
             d=lua_rawequal(lua, -1, -2);
             lua_pop(lua, 2);
         }
-    return d;	//TODO: 1 if index is a vector, 2 matrix
+    return d;
+}
+
+static int vL_dim(lua_State *lua, int index)
+{
+    int shape=0;
+    if(lua_istable(lua, index)) {
+        lua_rawgeti(lua, index, 1);
+        shape = (vL_isvector(lua, -1))?(2):(1);
+        lua_pop(lua, 1);
+    } else {
+        shape = (vL_isvector(lua, index))?(1):(0);
+    }
+    return shape;
 }
 
 static int v_isvector(lua_State *lua)
 {
-    int e = vL_isvector(lua, 1);
-    lua_pushboolean(lua, (e==1));
+    int shape = vL_dim(lua, 1);
+    lua_pushnumber(lua, shape);
     return 1;
 }
 
@@ -115,12 +131,17 @@ static int v_memdebug(lua_State *lua)
     return 0;
 }
 
+/**
+ * @brief add raw method!
+ * */
 static int v_index(lua_State *lua)
 {
-    int index = (int)luaL_checknumber(lua, 2)-1;
-    const vector_t *b = lua_topointer(lua, 1);
-    double *p = b->p; assert(index<b->n && index>=0);
-    lua_pushnumber(lua, p[index]);
+    const vector_t *b; int i;
+    b = lua_topointer(lua, 1);
+    //if number, else if "raw"
+    i = (int)luaL_checknumber(lua, 2)-1;
+    assert(i<b->n && i>=0);
+    lua_pushnumber(lua, b->p[i]);
     return 1;
 }
 
@@ -190,6 +211,59 @@ static int v_matrix(lua_State *lua)
     return 1;
 }
 
+/**
+ * @brief handle=require("ffi"), TODO: handle without jit!
+ * */
+static void jit_ffi_init(lua_State *lua)
+{
+    lua_getglobal(lua, "jit");
+    if(lua_istable(lua, -1)) {
+        have_jit = 1;
+        lua_getglobal(lua, "require");
+        lua_pushstring(lua, "ffi");
+        lua_call(lua, 1, 1);
+        lua_setglobal(lua, NAME_VECFFI);
+        printf("Initiate FFI\n"); fflush(0);
+    } else {
+        printf("No Jit, without FFI\n"); fflush(0);
+    }
+}
+
+/**
+ * @brief c wrap around the ffi.cast() luajit function
+ * */
+static int jit_ffi_cast(lua_State *lua, const char *type, void *pt)
+{
+    lua_getglobal(lua, NAME_VECFFI);
+    lua_getfield(lua, -1, "cast");
+    lua_pushstring(lua, type);
+    lua_pushlightuserdata(lua, pt);
+    lua_call(lua, 2, 1);
+    lua_pop(lua, 1);
+    return 1;   //1 result left on stack
+}
+
+/**
+ * @brief get the raw pointer(*) or (**) for vector or matrix
+ * v.raw_internal() for use with luajit ffi
+ * should be a lua wrapper to provide compatibility without luajit
+ * */
+static int v_raw_alias(lua_State *lua)
+{
+    int n, dim; double *p;
+    if(have_jit) {
+        dim = vL_dim(lua, 1);
+        if(dim==1) {
+            p = v_get_vector(lua, 1, &n);
+            jit_ffi_cast(lua, "double*", p);
+        } else {
+            assert(dim==1); //TODO: force to abort()
+        }
+    } else 
+        lua_pushvalue(lua, 1);
+    return 1;
+}
+
 void vLib_v4_init(lua_State *lua)
 {
     static const luaL_Reg ky_vect_meta[] = {
@@ -208,7 +282,9 @@ void vLib_v4_init(lua_State *lua)
     static const luaL_Reg ky_vect_func[] = {
         {"vector",      &v_vector},
         {"matrix",      &v_matrix},
-        {"isvector",    &v_isvector},
+        {"dim",         &v_isvector},
+        {"raw_alias",   &v_raw_alias},
+        {"raw",         &v_raw_alias},
         {"debug",       &v_memdebug},
         {NULL,          NULL}
     };
@@ -228,6 +304,8 @@ int main(int argc, char *argv[])
     lua_State * lua = luaL_newstate();
     luaL_openlibs(lua);
 
+    //TODO: need first test if LuaJit is available!
+    jit_ffi_init(lua);
     vLib_v4_init(lua);
 
     if(argc>1) {
