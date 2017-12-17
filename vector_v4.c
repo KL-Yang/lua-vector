@@ -139,19 +139,19 @@ static int v_index(lua_State *lua)
     const vector_t *b; int i;
     b = lua_topointer(lua, 1);
     //if number, else if "raw"
-    i = (int)luaL_checknumber(lua, 2)-1;
-    assert(i<b->n && i>=0);
+    i = (int)luaL_checknumber(lua, 2);
+    assert(i<=b->n && i>=0);
     lua_pushnumber(lua, b->p[i]);
     return 1;
 }
 
 static int v_newindex(lua_State *lua)
 {
-    int index = (int)luaL_checknumber(lua,2)-1;
+    int index = (int)luaL_checknumber(lua,2);
     double value = luaL_checknumber(lua,3);
     const vector_t *obj = lua_topointer(lua, 1);
     double *p = obj->p; 
-    if(index>=obj->n || index<0) {
+    if(index>obj->n || index<0) {
         printf("Access vector out of boundary!\n"
                 "This does not allow to change length after vector creation!\n");
         abort();
@@ -164,25 +164,26 @@ static int v_newindex(lua_State *lua)
  * @brief Function v.vector(n), initiate array of length n with value v
  * v.vector(n)    : create new vector of length n, initiate as 0
  * v.vector(tab)  : create new vector from a table with same length
+ * allocation 1 more element for index compatiblilty with LuaJit.ffi
  * */
 static int v_vector(lua_State *lua)
 {
     int n; double *a;
     if(lua_istable(lua, 1)) {
         n = (int)lua_rawlen(lua, 1);
-        a = malloc(n*sizeof(double));
+        a = malloc((n+1)*sizeof(double));
         for(int k=0; k<n; k++) {
             lua_rawgeti(lua, 1, k+1);
-            a[k] = lua_tonumber(lua, -1);
+            a[k+1] = lua_tonumber(lua, -1);
             lua_pop(lua, 1);
         }
     } else {
         n = luaL_checknumber(lua, 1);
-        a = malloc(n*sizeof(double));
+        a = malloc((n+1)*sizeof(double));
         for(int i=0; i<n; i++)
-            a[i] = 0;
+            a[i+1] = 0;
     }
-    MUSE(n*sizeof(double));
+    MUSE((n+1)*sizeof(double));
     v_set_vector(lua, a, n);
     return 1;
 }
@@ -202,8 +203,8 @@ static int v_matrix(lua_State *lua)
         n = luaL_checknumber(lua, 2);
         lua_createtable(lua, m, 0);
         for(int i=0; i<m; i++) {
-            a = calloc(n, sizeof(double));
-            MUSE(n*sizeof(double));
+            a = calloc(n+1, sizeof(double));
+            MUSE((n+1)*sizeof(double));
             v_set_vector(lua, a, n);
             lua_rawseti(lua, -2, i+1);
         }
@@ -239,7 +240,7 @@ static int jit_ffi_cast(lua_State *lua, const char *type, void *pt)
     lua_pushstring(lua, type);
     lua_pushlightuserdata(lua, pt);
     lua_call(lua, 2, 1);
-    lua_pop(lua, 1);
+//    lua_pop(lua, 1);
     return 1;   //1 result left on stack
 }
 
