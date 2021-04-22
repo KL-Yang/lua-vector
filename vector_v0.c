@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 #include <lua5.3/lua.h>
 #include <lua5.3/lauxlib.h>
 #include <lua5.3/lualib.h>
@@ -10,23 +11,35 @@ typedef struct {
     double          data[];
 } ky_vector_t;
 
-static int vector_new(lua_State *lua)
+/**
+ * @brief Create lua userdata (a pointer to ky_vector_t)
+ * */
+static void create_lua_vector(lua_State *lua, ky_vector_t *vect)
 {
-    int i, n;
-    ky_vector_t *mat, **udata;
-
-    n = luaL_checkinteger(lua, 1);
-    mat = malloc(sizeof(ky_vector_t)+sizeof(double)*n);
-    mat->n = n;
-    memset(mat->data, 0, sizeof(double)*n);
-    for(i=0; i<n; i++)
-        mat->data[i] = i;
-
-    udata = (ky_vector_t**)lua_newuserdata(lua, sizeof(ky_vector_t*));
-    *udata = mat;
-
+    ky_vector_t **pp = lua_newuserdata(lua, sizeof(void*));
+    pp[0] = vect;
     luaL_getmetatable(lua, "ky_vector_v1");
     lua_setmetatable(lua, -2);
+}
+
+static ky_vector_t * calloc_raw_vector(int n)
+{
+    ky_vector_t *v;
+    v = malloc(sizeof(ky_vector_t)+sizeof(double)*n);
+    v->n = n;
+    memset(v->data, 0, sizeof(double)*n);
+    for(int i=0; i<n; i++)
+        v->data[i] = i;
+    return v;
+}
+
+static int v_vector(lua_State *lua)
+{
+    int n;
+    ky_vector_t *v;
+    n = luaL_checkinteger(lua, 1);
+    v = calloc_raw_vector(n);
+    create_lua_vector(lua, v);
     return 1;
 }
 
@@ -48,22 +61,26 @@ int vector_tostring(lua_State *lua)
     ky_vector_t *v, **udata;
     udata = (ky_vector_t**)luaL_checkudata(lua, 1, "ky_vector_v1");
     v = *udata;
-    for(i=0; i<v->n; i++)
-        printf(" >%3d %f\n", i, v->data[i]);
-    lua_pushfstring(lua, "(%f)", v->n);
+    if(v->n<5) {
+        for(i=0; i<v->n; i++)
+            printf("#>%3d %f\n", i, v->data[i]);
+    }
+    lua_pushfstring(lua, "#%s(%d)", __func__, v->n);
     return 1;
 }
 
 static int vector_add(lua_State *lua)
 {
-    ky_vector_t *v1, *v2, **udata;
+    ky_vector_t *v1, *v2, *v3;
     v1 = vector_CheckVector(lua, 1);
-    v2 = vector_CheckVector(lua, 2);
-    int i;
-    for(i=0; i<v1->n; i++) {
-        printf("  #%2d %f\n", i, v1->data[i]+v2->data[i]);
+    v2 = vector_CheckVector(lua, 2); 
+    v3 = calloc_raw_vector(v1->n); assert(v1->n==v2->n);
+    for(int i=0; i<v1->n; i++) {
+        v3->data[i] = v1->data[i]+v2->data[i];
+        //printf("  #%2d %f\n", i, v1->data[i]+v2->data[i]);
     }
-    lua_pushnumber(lua, 100);
+    //lua_pushnumber(lua, 100);
+    create_lua_vector(lua, v3);
     return 1;
 }
 
@@ -71,7 +88,7 @@ int vector_luaopen(lua_State *lua)
 {
     luaL_Reg vector_func[] =
     {
-        { "new",    &vector_new },
+        { "vector",    &v_vector},
         { NULL, NULL }
     };
 
@@ -91,7 +108,7 @@ int vector_luaopen(lua_State *lua)
 
     //setup the methods
     luaL_newlib(lua, vector_func);    //setup the vector table
-    lua_setglobal(lua, "vector");
+    lua_setglobal(lua, "v");
     return 1;
 }
 
