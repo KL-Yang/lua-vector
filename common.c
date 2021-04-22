@@ -38,3 +38,11 @@ vector_op_sv(double a, const double * restrict b, int n, char op,
         case '^': for(int i=0; i<n; i++) {c[i] = pow(a,b[i]);} 
     }
 }
+
+void 
+debug_top_info(lua_State *lua, const char *func, const char *msg)
+{
+    int x=lua_gettop(lua);
+    printf("%s: %s top=%d\n", func, msg, x);
+    fflush(0);
+}

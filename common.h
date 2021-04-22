@@ -22,3 +22,4 @@
 void vector_op_vs(const double * restrict a, double b, int n, char op, double * restrict c); 
 void vector_op_sv(double a, const double * restrict b, int n, char op, double * restrict c);
 void vector_op_vv(const double * restrict a, const double * restrict b, int n, char op, double * restrict c);
+void debug_top_info(lua_State *lua, const char *func, const char *msg);

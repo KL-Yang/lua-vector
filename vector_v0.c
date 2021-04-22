@@ -1,10 +1,9 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <assert.h>
-#include <lua5.3/lua.h>
-#include <lua5.3/lauxlib.h>
-#include <lua5.3/lualib.h>
+#include "common.h"
+
+/* ************************************************************
+ *
+ *
+ * */
 
 typedef struct {
     int             n;
@@ -84,40 +83,44 @@ static int vector_add(lua_State *lua)
     return 1;
 }
 
-int vector_luaopen(lua_State *lua)
+void vector_luaopen(lua_State *lua)
 {
-    luaL_Reg vector_func[] =
-    {
-        { "vector",    &v_vector},
-        { NULL, NULL }
+    luaL_Reg vector_func[] = {
+        { "vector",     &v_vector},
+        { NULL,         NULL }
     };
-
-    luaL_Reg vector_meta[] =
-    {
+    luaL_Reg vector_meta[] = {
         { "__gc",       &vector_destroy },
         { "__add",      &vector_add },
         { "__tostring", &vector_tostring },
         { NULL, NULL }
     };
-
     //setup the meta table
-    luaL_newmetatable(lua, "ky_vector_v1"); //metatable = {}
-    lua_pushvalue(lua, -1);
-    lua_setfield(lua, -2, "__index");         //metatable.__index=metatable
+    debug_top_info(lua, __func__, "before meta");
+    luaL_newmetatable(lua, "ky_vector_v1");     //metatable = {}
+    //lua_pushvalue(lua, -1);
+    //lua_setfield(lua, -2, "__index");           //metatable.__index=metatable
     luaL_setfuncs(lua, vector_meta, 0);
+    lua_pop(lua, 1);
+    debug_top_info(lua, __func__, "after meta");
 
     //setup the methods
-    luaL_newlib(lua, vector_func);    //setup the vector table
+    luaL_newlib(lua, vector_func);              //setup the vector table
     lua_setglobal(lua, "v");
-    return 1;
 }
 
 int main(int argc, char *argv[])
 {
     lua_State * lua = luaL_newstate();
-    luaL_openlibs(lua);
 
+    luaL_openlibs(lua);
     vector_luaopen(lua);
+
+    debug_top_info(lua, __func__, "b4 v0def");
+    //lua_pushvalue(lua, 1);
+    lua_pushnumber(lua, 1);
+    lua_setglobal(lua, "_vector_v0_def");
+    debug_top_info(lua, __func__, "af v0def");
 
     if(argc>1) luaL_dofile(lua, argv[1]);
 
