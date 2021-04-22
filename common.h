@@ -5,9 +5,9 @@
 #include <string.h>
 #include <assert.h>
 #ifdef USE_JIT      //lua-5.1
-#include <luajit-2.0/lua.h>
-#include <luajit-2.0/lualib.h>
-#include <luajit-2.0/lauxlib.h>
+#include <luajit-2.1/lua.h>
+#include <luajit-2.1/lualib.h>
+#include <luajit-2.1/lauxlib.h>
 #define  lua_rawlen(a,b) lua_objlen(a,b)    
 #else               //lua-5.2
 #include <lua5.3/lua.h>
