@@ -2,20 +2,13 @@ Rlist = {}      --To record the uninitiated access
 Wlist = {}      --To record the uninitiated access
 
 local mt = {
-    ----------------------------------------------
-    --Try to detect read access
-    ----------------------------------------------
     __index = function (t, k)
         table.insert(_G.Rlist, k)
         return 0
     end,
-    ----------------------------------------------
-    --Try to detect write access
-    ----------------------------------------------
     __newindex = function (t, k, v)
         rawset(t, k, v)
-        table.insert(_G.Wlist, k)   --may not safe, should use rawset!
-        return 0
+        table.insert(_G.Wlist, k)
     end
 }
 setmetatable(_G, mt)
@@ -38,3 +31,11 @@ for i=1, #Wlist do
     print(Wlist[i])
     print(_G[Wlist[i]])
 end
+
+-- This test the variable argument functions!
+function tprint(...)
+    for i,v in ipairs {...} do
+        print(i, v)
+    end
+end
+tprint("hello", "world", "lua")
